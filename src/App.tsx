@@ -1,37 +1,126 @@
 import React, { useEffect, useRef, useState } from "react";
 
-// CSS 애니메이션
-const styles = `
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-  }
-`;
+// 파일 업로드 컴포넌트
+function FileUploadInput({ onUpload, uploadedFile }) {
+  const inputRef = useRef(null);
 
-// 모의 API 함수들
-async function apiVtonRun({ personImage, clothUrl }) {
-  await new Promise((r) => setTimeout(r, 1200));
-  return { 
-    result_image_url: "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=400&h=600&fit=crop", 
-    job_id: "job_demo_1" 
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      onUpload(file);
+    }
   };
-}
 
-async function apiVideoRun({ imageUrl, prompt }) {
-  await new Promise((r) => setTimeout(r, 2000));
-  return { 
-    video_url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" 
+  const handleDrop = (event) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      onUpload(file);
+    }
   };
+
+  const handleDragOver = (event) => {
+    event.preventDefault();
+  };
+
+  return (
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div
+        onClick={() => inputRef.current?.click()}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        style={{
+          flex: 1,
+          border: '2px dashed #cbd5e1',
+          borderRadius: '8px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          backgroundColor: '#f8fafc',
+          transition: 'all 0.2s'
+        }}
+      >
+        {uploadedFile ? (
+          <div style={{ 
+            width: '100%', 
+            height: '100%', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            position: 'relative'
+          }}>
+            <img
+              src={URL.createObjectURL(uploadedFile)}
+              alt="Uploaded person"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                borderRadius: '4px'
+              }}
+            />
+            <div style={{
+              position: 'absolute',
+              bottom: '0.5rem',
+              left: '0.5rem',
+              right: '0.5rem',
+              backgroundColor: 'rgba(0, 0, 0, 0.7)',
+              color: 'white',
+              fontSize: '0.875rem',
+              padding: '0.25rem 0.5rem',
+              borderRadius: '4px',
+              textAlign: 'center'
+            }}>
+              {uploadedFile.name}
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', color: '#6b7280' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📸</div>
+            <div style={{ marginBottom: '0.25rem' }}>Click to upload or drag & drop</div>
+            <div style={{ fontSize: '0.875rem' }}>JPG, PNG files</div>
+          </div>
+        )}
+      </div>
+      
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileSelect}
+        style={{ display: 'none' }}
+      />
+      
+      {uploadedFile && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onUpload(null);
+          }}
+          style={{
+            padding: '0.5rem',
+            backgroundColor: '#ef4444',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '0.875rem'
+          }}
+        >
+          Remove Image
+        </button>
+      )}
+    </div>
+  );
 }
 
 // 카메라 컴포넌트
 function CameraInput() {
   const videoRef = useRef(null);
   const [hasPermission, setHasPermission] = useState(null);
+  const [isCapturing, setIsCapturing] = useState(false);
 
   useEffect(() => {
     async function setupCamera() {
@@ -50,7 +139,37 @@ function CameraInput() {
       }
     }
     setupCamera();
+    
+    return () => {
+      if (videoRef.current && videoRef.current.srcObject) {
+        const tracks = videoRef.current.srcObject.getTracks();
+        tracks.forEach(track => track.stop());
+      }
+    };
   }, []);
+
+  const capturePhoto = () => {
+    if (!videoRef.current) return;
+    
+    setIsCapturing(true);
+    
+    const canvas = document.createElement('canvas');
+    const video = videoRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0);
+    
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
+        console.log('Captured photo:', file);
+        alert('사진이 캡처되었습니다!');
+      }
+      setIsCapturing(false);
+    }, 'image/jpeg', 0.8);
+  };
 
   if (hasPermission === false) {
     return (
@@ -62,11 +181,27 @@ function CameraInput() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: 'white'
+        color: 'white',
+        flexDirection: 'column',
+        gap: '1rem'
       }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '1.125rem', marginBottom: '0.5rem' }}>📷</div>
           <div>Camera permission required</div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: '1rem',
+              padding: '0.5rem 1rem',
+              backgroundColor: '#2563eb',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -78,7 +213,8 @@ function CameraInput() {
       height: '100%',
       backgroundColor: 'black',
       borderRadius: '8px',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      position: 'relative'
     }}>
       <video
         ref={videoRef}
@@ -91,12 +227,35 @@ function CameraInput() {
           objectFit: 'cover'
         }}
       />
+      
+      <button
+        onClick={capturePhoto}
+        disabled={isCapturing}
+        style={{
+          position: 'absolute',
+          bottom: '1rem',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '60px',
+          height: '60px',
+          borderRadius: '50%',
+          backgroundColor: isCapturing ? '#6b7280' : '#ef4444',
+          border: '3px solid white',
+          cursor: isCapturing ? 'not-allowed' : 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '1.5rem'
+        }}
+      >
+        {isCapturing ? '⏳' : '📸'}
+      </button>
     </div>
   );
 }
 
 // 옷 선택 컴포넌트
-function GarmentPicker({ onSelect, selectedId }) {
+function GarmentPicker({ onSelect, selectedId, disabled }) {
   const garments = [
     { id: 'shirt1', url: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=200&h=250&fit=crop', name: 'Plaid Shirt' },
     { id: 'shirt2', url: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=200&h=250&fit=crop', name: 'Striped Tee' },
@@ -118,7 +277,8 @@ function GarmentPicker({ onSelect, selectedId }) {
         {garments.map((item) => (
           <button
             key={item.id}
-            onClick={() => onSelect(item.id)}
+            onClick={() => onSelect(item)}
+            disabled={disabled}
             style={{
               position: 'relative',
               borderRadius: '8px',
@@ -127,8 +287,9 @@ function GarmentPicker({ onSelect, selectedId }) {
               transition: 'all 0.2s',
               transform: selectedId === item.id ? 'scale(1.05)' : 'scale(1)',
               boxShadow: selectedId === item.id ? '0 10px 25px -3px rgba(0, 0, 0, 0.1)' : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-              cursor: 'pointer',
-              backgroundColor: 'transparent'
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              backgroundColor: 'transparent',
+              opacity: disabled ? 0.5 : 1
             }}
           >
             <img 
@@ -222,7 +383,7 @@ function VtonResult({ imageUrl, isLoading }) {
         style={{
           width: '100%',
           height: '100%',
-          objectFit: 'cover'
+          objectFit: 'contain'
         }}
       />
     </div>
@@ -258,21 +419,6 @@ function VideoResult({ videoUrl, isLoading, onRegenerate }) {
             animation: 'pulse 2s infinite'
           }}>🎬</div>
           <div style={{ marginBottom: '0.5rem' }}>Generating 3D video...</div>
-          <div style={{
-            width: '8rem',
-            backgroundColor: '#374151',
-            borderRadius: '9999px',
-            height: '0.5rem',
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              backgroundColor: '#3b82f6',
-              height: '0.5rem',
-              borderRadius: '9999px',
-              width: '60%',
-              animation: 'pulse 1s infinite'
-            }}></div>
-          </div>
         </div>
       </div>
     );
@@ -366,31 +512,197 @@ export default function App() {
   const [isVtonLoading, setIsVtonLoading] = useState(false);
   const [isVideoLoading, setIsVideoLoading] = useState(false);
   const [autoGenerate3D, setAutoGenerate3D] = useState(true);
+  const [inputMode, setInputMode] = useState('file');
+  const [uploadedPerson, setUploadedPerson] = useState(null);
+  
+  // Vite 프록시를 통한 요청 (CORS 우회)
+  const apiUrl = '/v1/vton/idm';
 
-  const handleGarmentSelect = (garmentId) => {
-    setSelectedGarment(garmentId);
+  const handleGarmentSelect = (garment) => {
+    setSelectedGarment(garment);
+    setVtonResult(null);
+    setVideoUrl(null);
+  };
+
+  const handlePersonUpload = (file) => {
+    setUploadedPerson(file);
     setVtonResult(null);
     setVideoUrl(null);
   };
 
   const handleRunVton = async () => {
-    if (!selectedGarment) return;
+    console.log('=== VTON 실행 시작 ===');
+    console.log('Input Mode:', inputMode);
+    console.log('Uploaded Person:', uploadedPerson);
+    console.log('Selected Garment:', selectedGarment);
+    console.log('API URL:', apiUrl);
+    
+    if (inputMode === 'file' && !uploadedPerson) {
+      alert('인물 이미지를 업로드해주세요.');
+      return;
+    }
+    
+    if (!selectedGarment) {
+      alert('의상을 선택해주세요.');
+      return;
+    }
     
     setIsVtonLoading(true);
+    setVtonResult(null);
+    
     try {
-      const result = await apiVtonRun({ 
-        personImage: null, 
-        clothUrl: selectedGarment 
+      const formData = new FormData();
+      
+      if (inputMode === 'file' && uploadedPerson) {
+        formData.append('person', uploadedPerson);
+        console.log('✅ Added person file:', {
+          name: uploadedPerson.name,
+          size: uploadedPerson.size,
+          type: uploadedPerson.type
+        });
+      } else if (inputMode === 'camera') {
+        setIsVtonLoading(false);
+        alert('카메라 캡처 기능은 아직 구현되지 않았습니다. 파일 업로드를 사용해주세요.');
+        return;
+      }
+      
+      formData.append('garment_url', selectedGarment.url);
+      console.log('✅ Added garment_url:', selectedGarment.url);
+      
+      // FormData 내용 확인
+      console.log('=== FormData 내용 ===');
+      for (let [key, value] of formData.entries()) {
+        if (value instanceof File) {
+          console.log(`${key}:`, {
+            name: value.name,
+            size: value.size,
+            type: value.type
+          });
+        } else {
+          console.log(`${key}:`, value);
+        }
+      }
+      
+      console.log('🚀 Sending VTON request to:', apiUrl);
+      console.log('Request method: POST');
+      console.log('Request body: FormData (see above)');
+      
+      // CORS preflight 요청을 위한 추가 설정
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        body: formData,
+        mode: 'cors', // CORS 모드 명시적 설정
+        // Content-Type은 FormData 사용시 자동 설정됨
       });
-      setVtonResult(result.result_image_url);
+      
+      console.log('📡 Response received');
+      console.log('Response status:', response.status);
+      console.log('Response statusText:', response.statusText);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      console.log('Response URL:', response.url);
+      console.log('Response OK:', response.ok);
+      
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status} ${response.statusText}`;
+        let errorDetails = '';
+        
+        try {
+          const errorText = await response.text();
+          console.log('❌ Error response body:', errorText);
+          
+          // JSON 파싱 시도
+          try {
+            const errorData = JSON.parse(errorText);
+            if (errorData.error) {
+              errorDetails = errorData.error;
+            }
+          } catch (jsonError) {
+            // JSON이 아닌 경우 텍스트 그대로 사용
+            errorDetails = errorText;
+          }
+        } catch (textError) {
+          console.log('❌ Failed to read error response:', textError);
+        }
+        
+        const fullError = errorDetails ? `${errorMessage}: ${errorDetails}` : errorMessage;
+        
+        // 405 에러에 대한 특별 처리
+        if (response.status === 405) {
+          console.log('🔍 405 Method Not Allowed - 서버가 POST 메서드를 허용하지 않음');
+          console.log('디버깅 단계:');
+          console.log('1. 서버 엔드포인트 확인 중...');
+          
+          // 서버 기본 엔드포인트들 확인
+          try {
+            const healthCheck = await fetch('http://localhost:8000/health');
+            console.log('Health check:', healthCheck.status, healthCheck.statusText);
+            
+            const rootCheck = await fetch('http://localhost:8000/');
+            console.log('Root endpoint:', rootCheck.status, rootCheck.statusText);
+            
+            // 서버 정보 확인
+            if (rootCheck.ok) {
+              const rootData = await rootCheck.json();
+              console.log('Server info:', rootData);
+            }
+          } catch (checkError) {
+            console.log('Server check failed:', checkError);
+          }
+        }
+        
+        // 404 에러에 대한 특별 처리
+        if (response.status === 404) {
+          console.log('🔍 404 Error - API endpoint not found');
+          console.log('Possible solutions:');
+          console.log('1. Check if the server is running on http://localhost:8000');
+          console.log('2. Verify the endpoint path is correct: /v1/vton/idm');
+          console.log('3. Make sure CORS is enabled on the server');
+        }
+        
+        throw new Error(fullError);
+      }
+      
+      const result = await response.json();
+      console.log('✅ VTON result received:', result);
+      
+      let resultUrl = '';
+      if (result.image_url) {
+        resultUrl = result.image_url;
+        console.log('✅ Using image_url:', resultUrl);
+      } else if (result.image_base64) {
+        resultUrl = `data:image/png;base64,${result.image_base64}`;
+        console.log('✅ Using image_base64, length:', result.image_base64.length);
+      } else {
+        console.log('❌ No image found in response');
+        throw new Error('결과 이미지를 받을 수 없습니다. 응답에 image_url 또는 image_base64가 없습니다.');
+      }
+      
+      setVtonResult(resultUrl);
+      console.log('✅ VTON result set successfully');
       
       if (autoGenerate3D) {
-        await handleGenerateVideo(result.result_image_url);
+        console.log('🎬 Auto-generating 3D video...');
+        await handleGenerateVideo(resultUrl);
       }
+      
     } catch (error) {
-      console.error('VTON failed:', error);
+      console.error('❌ VTON error:', error);
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
+      let userMessage = `VTON 처리 중 오류가 발생했습니다:\n\n${error.message}`;
+      
+      if (error.message.includes('404')) {
+        userMessage += '\n\n디버깅 정보:\n- 서버가 http://localhost:8000 에서 실행 중인지 확인하세요\n- 엔드포인트 /v1/vton/idm 이 올바른지 확인하세요';
+      } else if (error.message.includes('fetch')) {
+        userMessage += '\n\n네트워크 오류가 발생했습니다. 서버 연결을 확인하세요.';
+      }
+      
+      alert(userMessage);
     } finally {
       setIsVtonLoading(false);
+      console.log('=== VTON 실행 완료 ===');
     }
   };
 
@@ -400,17 +712,17 @@ export default function App() {
 
     setIsVideoLoading(true);
     try {
-      const result = await apiVideoRun({ 
-        imageUrl: targetImage, 
-        prompt: "Generate a 5s 720p@24fps runway walk with a single 360° turn" 
-      });
-      setVideoUrl(result.video_url);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const dummyVideoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+      setVideoUrl(dummyVideoUrl);
     } catch (error) {
       console.error('Video generation failed:', error);
     } finally {
       setIsVideoLoading(false);
     }
   };
+
+  const canRun = selectedGarment && ((inputMode === 'file' && uploadedPerson) || inputMode === 'camera') && !isVtonLoading;
 
   return (
     <div style={{
@@ -421,9 +733,17 @@ export default function App() {
       flexDirection: 'column',
       overflow: 'hidden'
     }}>
-      <style>{styles}</style>
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+      `}</style>
       
-      {/* 헤더 */}
       <div style={{
         backgroundColor: 'white',
         boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
@@ -462,14 +782,14 @@ export default function App() {
           </label>
           <button
             onClick={handleRunVton}
-            disabled={!selectedGarment || isVtonLoading}
+            disabled={!canRun}
             style={{
               padding: '0.5rem 1.5rem',
-              backgroundColor: !selectedGarment || isVtonLoading ? '#9ca3af' : '#2563eb',
+              backgroundColor: !canRun ? '#9ca3af' : '#2563eb',
               color: 'white',
               borderRadius: '8px',
               border: 'none',
-              cursor: !selectedGarment || isVtonLoading ? 'not-allowed' : 'pointer',
+              cursor: !canRun ? 'not-allowed' : 'pointer',
               transition: 'background-color 0.2s'
             }}
           >
@@ -478,7 +798,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* 4분할 메인 영역 */}
       <div style={{
         flex: 1,
         padding: '1rem',
@@ -488,7 +807,6 @@ export default function App() {
         gap: '1rem',
         height: 'calc(100vh - 80px)'
       }}>
-        {/* 좌상: 카메라 입력 */}
         <div style={{
           backgroundColor: 'white',
           borderRadius: '12px',
@@ -501,7 +819,10 @@ export default function App() {
           <div style={{
             padding: '1rem',
             borderBottom: '1px solid #e5e7eb',
-            backgroundColor: '#f9fafb'
+            backgroundColor: '#f9fafb',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
           }}>
             <h2 style={{ 
               fontSize: '1.125rem', 
@@ -509,15 +830,48 @@ export default function App() {
               color: '#1f2937', 
               margin: 0 
             }}>
-              Camera Input
+              Person Input
             </h2>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={() => setInputMode('file')}
+                style={{
+                  padding: '0.25rem 0.75rem',
+                  fontSize: '0.75rem',
+                  backgroundColor: inputMode === 'file' ? '#2563eb' : '#e5e7eb',
+                  color: inputMode === 'file' ? 'white' : '#374151',
+                  borderRadius: '4px',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                File Upload
+              </button>
+              <button
+                onClick={() => setInputMode('camera')}
+                style={{
+                  padding: '0.25rem 0.75rem',
+                  fontSize: '0.75rem',
+                  backgroundColor: inputMode === 'camera' ? '#2563eb' : '#e5e7eb',
+                  color: inputMode === 'camera' ? 'white' : '#374151',
+                  borderRadius: '4px',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                Camera
+              </button>
+            </div>
           </div>
           <div style={{ padding: '1rem', flex: 1 }}>
-            <CameraInput />
+            {inputMode === 'file' ? (
+              <FileUploadInput onUpload={handlePersonUpload} uploadedFile={uploadedPerson} />
+            ) : (
+              <CameraInput />
+            )}
           </div>
         </div>
 
-        {/* 우상: VTON 결과 */}
         <div style={{
           backgroundColor: 'white',
           borderRadius: '12px',
@@ -546,7 +900,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* 좌하: 옷 선택 */}
         <div style={{
           backgroundColor: 'white',
           borderRadius: '12px',
@@ -573,12 +926,12 @@ export default function App() {
           <div style={{ flex: 1 }}>
             <GarmentPicker 
               onSelect={handleGarmentSelect} 
-              selectedId={selectedGarment} 
+              selectedId={selectedGarment?.id}
+              disabled={isVtonLoading}
             />
           </div>
         </div>
 
-        {/* 우하: 3D 비디오 */}
         <div style={{
           backgroundColor: 'white',
           borderRadius: '12px',
